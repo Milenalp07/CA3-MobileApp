@@ -1,6 +1,8 @@
 package com.example.ca3
 
 import android.os.Bundle
+import java.net.URLDecoder
+import java.net.URLEncoder
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +30,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import coil.compose.AsyncImage
 
 data class Song(
     val title: String,
@@ -40,14 +47,55 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                SongApp()
+                AppNavigation()
             }
         }
     }
 }
 
 @Composable
-fun SongApp() {
+fun AppNavigation() {
+    val navController = rememberNavController()
+
+    NavHost(
+        navController = navController,
+        startDestination = "songList"
+    ) {
+        composable("songList") {
+            SongApp(navController)
+        }
+
+        composable("details/{title}/{artist}/{genre}/{description}") { backStackEntry ->
+            val title = URLDecoder.decode(
+                backStackEntry.arguments?.getString("title") ?: "",
+                "UTF-8"
+            )
+            val artist = URLDecoder.decode(
+                backStackEntry.arguments?.getString("artist") ?: "",
+                "UTF-8"
+            )
+            val genre = URLDecoder.decode(
+                backStackEntry.arguments?.getString("genre") ?: "",
+                "UTF-8"
+            )
+            val description = URLDecoder.decode(
+                backStackEntry.arguments?.getString("description") ?: "",
+                "UTF-8"
+            )
+
+            SongDetailScreen(
+                title = title,
+                artist = artist,
+                genre = genre,
+                description = description,
+                navController = navController
+            )
+        }
+    }
+}
+
+@Composable
+fun SongApp(navController: NavController) {
     val songList = remember {
         mutableStateListOf(
             Song("Buzzcut Season", "Lorde", "Pop"),
@@ -82,7 +130,28 @@ fun SongApp() {
             itemsIndexed(songList) { index, song ->
                 SongItem(
                     song = song,
-                    onDelete = { songList.removeAt(index) }
+                    onDelete = { songList.removeAt(index) },
+                    onViewDetails = {
+                        val description = when (song.title) {
+                            "Buzzcut Season" -> "A dreamy pop song by Lorde that talks about youth, imagination, and escaping reality."
+                            "Ribs" -> "One of Lorde’s most emotional songs, focusing on growing up and the fear of change."
+                            else -> null
+                        }
+
+                        if (description != null) {
+                            navController.navigate(
+                                "details/${
+                                    URLEncoder.encode(song.title, "UTF-8")
+                                }/${
+                                    URLEncoder.encode(song.artist, "UTF-8")
+                                }/${
+                                    URLEncoder.encode(song.genre, "UTF-8")
+                                }/${
+                                    URLEncoder.encode(description, "UTF-8")
+                                }"
+                            )
+                        }
+                    }
                 )
             }
         }
@@ -140,32 +209,101 @@ fun SongApp() {
 }
 
 @Composable
-fun SongItem(song: Song, onDelete: () -> Unit) {
+fun SongItem(
+    song: Song,
+    onDelete: () -> Unit,
+    onViewDetails: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(12.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = "Title: ${song.title}")
-                Text(text = "Artist: ${song.artist}")
-                Text(text = "Genre: ${song.genre}")
+            if (song.title == "Buzzcut Season") {
+                AsyncImage(
+                    model = "https://i1.sndcdn.com/artworks-000069865512-28nyn6-t500x500.jpg",
+                    contentDescription = "Buzzcut Season cover",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(150.dp)
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
             }
 
-            Button(
-                onClick = onDelete,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Red
-                )
+            Text(text = "Title: ${song.title}")
+            Text(text = "Artist: ${song.artist}")
+            Text(text = "Genre: ${song.genre}")
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Delete")
+                if (song.title == "Buzzcut Season" || song.title == "Ribs") {
+                    Button(onClick = onViewDetails) {
+                        Text("View Details")
+                    }
+                }
+
+                Button(
+                    onClick = onDelete,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.Red
+                    )
+                ) {
+                    Text("Delete")
+                }
             }
+        }
+    }
+}
+
+@Composable
+fun SongDetailScreen(
+    title: String,
+    artist: String,
+    genre: String,
+    description: String,
+    navController: NavController
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "Song Details",
+            style = MaterialTheme.typography.headlineMedium
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(text = "Title: $title")
+        Text(text = "Artist: $artist")
+        Text(text = "Genre: $genre")
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = "Description:",
+            style = MaterialTheme.typography.titleMedium
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(text = description)
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Button(onClick = { navController.popBackStack() }) {
+            Text("Back")
         }
     }
 }
